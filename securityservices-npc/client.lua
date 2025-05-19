@@ -1,7 +1,20 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 local hiredGuards = {}
 
--- Create HQ Ped and qb-target interaction
+-- Helper: EnumeratePeds
+function EnumeratePeds()
+    return coroutine.wrap(function()
+        local handle, ped = FindFirstPed()
+        local success
+        repeat
+            coroutine.yield(ped)
+            success, ped = FindNextPed(handle)
+        until not success
+        EndFindPed(handle)
+    end)
+end
+
+-- Create HQ Ped with qb-target
 CreateThread(function()
     local hash = GetHashKey("s_m_m_security_01")
     RequestModel(hash)
@@ -25,24 +38,14 @@ CreateThread(function()
     })
 end)
 
--- Open hire menu
+-- Hire Menu
 RegisterNetEvent('securityservices:openHireMenu', function()
     local input = exports['qb-input']:ShowInput({
         header = "Hire Bodyguards",
         submitText = "Hire",
         inputs = {
-            {
-                type = 'number',
-                name = 'count',
-                text = 'Number of Guards (1-3)',
-                isRequired = true
-            },
-            {
-                type = 'number',
-                name = 'duration',
-                text = 'Minutes of Protection',
-                isRequired = true
-            }
+            { type = 'number', name = 'count', text = 'Number of Guards (1-3)', isRequired = true },
+            { type = 'number', name = 'duration', text = 'Minutes of Protection', isRequired = true }
         }
     })
 
@@ -61,7 +64,7 @@ RegisterNetEvent('securityservices:openHireMenu', function()
     end
 end)
 
--- Spawn guard
+-- Spawn Guard
 RegisterNetEvent('securityservices:spawnGuard', function(duration)
     local model = Config.BodyguardModel
     RequestModel(model)
@@ -81,8 +84,6 @@ RegisterNetEvent('securityservices:spawnGuard', function(duration)
     SetPedFleeAttributes(guard, 0, false)
     SetPedDropsWeaponsWhenDead(guard, false)
     SetEntityAsMissionEntity(guard, true, true)
-    SetPedAsGroupMember(guard, GetPedGroupIndex(playerPed))
-    SetPedAsGroupLeader(playerPed, GetPedGroupIndex(playerPed))
 
     TaskFollowToOffsetOfEntity(guard, playerPed, 1.5, 1.0, 0.0, 1.0, -1, 1.0, true)
     table.insert(hiredGuards, guard)
@@ -92,15 +93,32 @@ RegisterNetEvent('securityservices:spawnGuard', function(duration)
     SetTimeout(duration * 60000, function()
         if DoesEntityExist(guard) then DeletePed(guard) end
         for i = #hiredGuards, 1, -1 do
-            if hiredGuards[i] == guard then
-                table.remove(hiredGuards, i)
-            end
+            if hiredGuards[i] == guard then table.remove(hiredGuards, i) end
         end
         QBCore.Functions.Notify("A guard has finished their shift.", "info")
     end)
 end)
 
--- Escort guards into vehicle
+-- PvP/NPC defense loop
+CreateThread(function()
+    while true do
+        Wait(500)
+        local player = PlayerPedId()
+        for _, ped in EnumeratePeds() do
+            if ped ~= player and HasEntityClearLosToEntity(player, ped, 17) and HasEntityBeenDamagedByEntity(player, ped, true) then
+                for _, guard in pairs(hiredGuards) do
+                    if DoesEntityExist(guard) and not IsPedDeadOrDying(guard) then
+                        TaskCombatPed(guard, ped, 0, 16)
+                    end
+                end
+                ClearEntityLastDamageEntity(player)
+                break
+            end
+        end
+    end
+end)
+
+-- Escort Guards to Vehicle
 RegisterCommand('escortvehicle', function()
     local vehicle = GetVehiclePedIsIn(PlayerPedId(), false)
     if vehicle and vehicle ~= 0 then
@@ -121,40 +139,23 @@ RegisterCommand('escortvehicle', function()
     end
 end)
 
--- Guard control menu
+-- Guard Control Menu
 RegisterCommand("guardmenu", function()
     local menu = {
         { header = "👮 Security Team", isMenuHeader = true },
-        {
-            header = "📍 Recall to Me",
-            txt = "Teleport all guards to you.",
-            params = { event = "securityservices:recallGuards" }
-        },
-        {
-            header = "🛑 Hold Position",
-            txt = "Freeze all guards in place.",
-            params = { event = "securityservices:holdPosition" }
-        },
-        {
-            header = "🏃 Resume Follow",
-            txt = "Make all guards follow you again.",
-            params = { event = "securityservices:resumeFollow" }
-        },
-        {
-            header = "❌ Dismiss All",
-            txt = "Fire all hired guards.",
-            params = { event = "securityservices:dismissGuards" }
-        },
+        { header = "📍 Recall to Me", txt = "Teleport all guards to you.", params = { event = "securityservices:recallGuards" }},
+        { header = "🛑 Hold Position", txt = "Freeze all guards in place.", params = { event = "securityservices:holdPosition" }},
+        { header = "🏃 Resume Follow", txt = "Make all guards follow again.", params = { event = "securityservices:resumeFollow" }},
+        { header = "❌ Dismiss All", txt = "Fire all hired guards.", params = { event = "securityservices:dismissGuards" }},
         { header = "⬅️ Close", params = { event = "" } },
     }
 
     exports['qb-menu']:openMenu(menu)
 end)
 
--- Keybinding for guard menu
 RegisterKeyMapping("guardmenu", "Open Guard Control Menu", "keyboard", "F6")
 
--- Menu actions
+-- Menu Actions
 RegisterNetEvent("securityservices:recallGuards", function()
     local coords = GetEntityCoords(PlayerPedId())
     for _, guard in pairs(hiredGuards) do
@@ -184,7 +185,7 @@ RegisterNetEvent("securityservices:resumeFollow", function()
             TaskFollowToOffsetOfEntity(guard, PlayerPedId(), 1.5, 1.0, 0.0, 1.0, -1, 1.0, true)
         end
     end
-    QBCore.Functions.Notify("Guards are following again.", "success")
+    QBCore.Functions.Notify("Guards resumed following.", "success")
 end)
 
 RegisterNetEvent("securityservices:dismissGuards", function()
@@ -195,27 +196,7 @@ RegisterNetEvent("securityservices:dismissGuards", function()
     QBCore.Functions.Notify("All guards dismissed.", "error")
 end)
 
--- PvP/NPC auto-defense
-CreateThread(function()
-    while true do
-        Wait(500)
-        local player = PlayerPedId()
-        if IsEntityDead(player) then goto continue end
-
-        local attacker = GetPedSourceOfDamage(player)
-        if attacker and attacker ~= player then
-            for _, guard in pairs(hiredGuards) do
-                if DoesEntityExist(guard) and not IsPedDeadOrDying(guard) then
-                    TaskCombatPed(guard, attacker, 0, 16)
-                end
-            end
-        end
-
-        ::continue::
-    end
-end)
-
--- Clear guards on death
+-- Clear on death
 AddEventHandler('onClientPlayerDied', function()
     for _, guard in pairs(hiredGuards) do
         if DoesEntityExist(guard) then DeletePed(guard) end
