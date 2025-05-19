@@ -1,37 +1,50 @@
 # securityservices-npc
 A complete, standalone QBCore script that allows players to hire NPC bodyguards for personal protection. Ideal for VIP escorts, gang protection, event security, or just staying safe in dangerous RP scenarios.
 
-🎯 Features
+✨ Features
 
-Aggressive behavior triggered by:
+✅ Hire 1–3 AI bodyguards from a real security HQ
 
-Aiming a weapon at NPCs
+⏱️ Configurable timer-based contracts (e.g., 5 minutes of protection)
 
-Approaching too closely while armed
+🔫 Guards shoot back at NPCs and players who attack you (PvP)
 
-Supports default GTA gang ped models
+🧠 Smart combat AI: follows you, takes cover, defends on threat
 
-No server-side dependencies — plug-and-play
+🚓 Escort-to-vehicle support
 
-Performance-friendly and easy to customize
+🧭 F6 Guard Control Menu (qb-menu):
 
-🔧 Configuration
-Easily adjust detection radius, gang models, and threat distance in the script to fit your server's environment.
+📍 Recall all guards
 
-📦 Installation
+🛑 Hold position
 
-Place the gang_aggression folder in your server's resources directory.
+🏃 Resume follow
 
-Add ensure gang_aggression to your server.cfg.
+❌ Dismiss all guards
 
-Restart the server or refresh resources.
+🏢 qb-target hiring menu from a stationary HQ security officer
 
-🧠 Future Improvements 
+🎯 Easy to integrate, no dependencies outside QBCore ecosystem
 
-(Planned or DIY)
-Territory-based aggression
+🔧 Dependencies
 
-Framework integration (QBCore, ESX)
+qb-core
 
-Friendly gang logic and alliances
+qb-target
+
+qb-input
+
+qb-menu
+
+📂 Installation
+
+Drop the folder into your resources/[qb] directory
+
+Add ensure securityservices-npc to your server.cfg
+
+Edit config.lua to customize guard models, weapons, and HQ location
+
+Enjoy in-game protection like never before!
+
 
